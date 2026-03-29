@@ -1,0 +1,15 @@
+node_modules
+dist
+out
+release
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Claude Code local settings
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
