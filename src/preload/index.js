@@ -13,7 +13,10 @@ const api = {
     getAll: () => ipcRenderer.invoke('categories:getAll'),
     create: (name) => ipcRenderer.invoke('categories:create', name),
     update: (id, name) => ipcRenderer.invoke('categories:update', id, name),
-    delete: (id) => ipcRenderer.invoke('categories:delete', id)
+    delete: (id) => ipcRenderer.invoke('categories:delete', id),
+    getBurdenRatios: (categoryId) => ipcRenderer.invoke('categories:getBurdenRatios', categoryId),
+    setBurdenRatios: (categoryId, ratios) =>
+      ipcRenderer.invoke('categories:setBurdenRatios', categoryId, ratios)
   },
   expenses: {
     getByMonth: (year, month) => ipcRenderer.invoke('expenses:getByMonth', year, month),
