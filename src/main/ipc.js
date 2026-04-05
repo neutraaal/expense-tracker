@@ -8,6 +8,8 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  getBurdenRatios,
+  setBurdenRatios,
   getExpensesByMonth,
   createExpense,
   updateExpense,
@@ -27,6 +29,10 @@ export function registerIpcHandlers() {
   ipcMain.handle('categories:create', (_, name) => createCategory(name))
   ipcMain.handle('categories:update', (_, id, name) => updateCategory(id, name))
   ipcMain.handle('categories:delete', (_, id) => deleteCategory(id))
+  ipcMain.handle('categories:getBurdenRatios', (_, categoryId) => getBurdenRatios(categoryId))
+  ipcMain.handle('categories:setBurdenRatios', (_, categoryId, ratios) =>
+    setBurdenRatios(categoryId, ratios)
+  )
 
   // ── Expenses ───────────────────────────────────────────────────────────────
   ipcMain.handle('expenses:getByMonth', (_, year, month) => getExpensesByMonth(year, month))

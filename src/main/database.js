@@ -65,6 +65,18 @@ function createTables() {
       FOREIGN KEY (paid_by) REFERENCES members(id)
     )
   `)
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS category_burden_ratios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      ratio INTEGER NOT NULL DEFAULT 1,
+      UNIQUE(category_id, member_id),
+      FOREIGN KEY (category_id) REFERENCES categories(id),
+      FOREIGN KEY (member_id) REFERENCES members(id)
+    )
+  `)
 }
 
 function insertDefaultCategories() {
@@ -100,8 +112,16 @@ export function getAllMembers() {
 
 export function createMember(name) {
   db.run('INSERT INTO members (name) VALUES (?)', [name])
+  const newMember = toObjects(db.exec('SELECT * FROM members WHERE id = last_insert_rowid()'))[0]
+  const categories = getAllCategories()
+  categories.forEach((c) => {
+    db.run(
+      'INSERT OR IGNORE INTO category_burden_ratios (category_id, member_id, ratio) VALUES (?, ?, 1)',
+      [c.id, newMember.id]
+    )
+  })
   saveDb()
-  return toObjects(db.exec('SELECT * FROM members WHERE id = last_insert_rowid()'))[0]
+  return newMember
 }
 
 export function updateMember(id, name) {
@@ -110,6 +130,7 @@ export function updateMember(id, name) {
 }
 
 export function deleteMember(id) {
+  db.run('DELETE FROM category_burden_ratios WHERE member_id = ?', [id])
   db.run('DELETE FROM members WHERE id = ?', [id])
   saveDb()
 }
@@ -122,8 +143,16 @@ export function getAllCategories() {
 
 export function createCategory(name) {
   db.run('INSERT INTO categories (name) VALUES (?)', [name])
+  const newCategory = toObjects(db.exec('SELECT * FROM categories WHERE id = last_insert_rowid()'))[0]
+  const members = getAllMembers()
+  members.forEach((m) => {
+    db.run(
+      'INSERT OR IGNORE INTO category_burden_ratios (category_id, member_id, ratio) VALUES (?, ?, 1)',
+      [newCategory.id, m.id]
+    )
+  })
   saveDb()
-  return toObjects(db.exec('SELECT * FROM categories WHERE id = last_insert_rowid()'))[0]
+  return newCategory
 }
 
 export function updateCategory(id, name) {
@@ -132,7 +161,40 @@ export function updateCategory(id, name) {
 }
 
 export function deleteCategory(id) {
+  db.run('DELETE FROM category_burden_ratios WHERE category_id = ?', [id])
   db.run('DELETE FROM categories WHERE id = ?', [id])
+  saveDb()
+}
+
+// ── Burden Ratios ─────────────────────────────────────────────────────────────
+
+export function getBurdenRatios(categoryId) {
+  const members = getAllMembers()
+  const existing = toObjects(
+    db.exec('SELECT member_id, ratio FROM category_burden_ratios WHERE category_id = ?', [
+      categoryId
+    ])
+  )
+  const ratioMap = {}
+  existing.forEach((r) => {
+    ratioMap[r.member_id] = r.ratio
+  })
+  return members.map((m) => ({
+    memberId: m.id,
+    memberName: m.name,
+    ratio: ratioMap[m.id] !== undefined ? ratioMap[m.id] : 1
+  }))
+}
+
+export function setBurdenRatios(categoryId, ratios) {
+  // ratios: [{memberId, ratio}]
+  ratios.forEach(({ memberId, ratio }) => {
+    db.run(
+      `INSERT INTO category_burden_ratios (category_id, member_id, ratio) VALUES (?, ?, ?)
+       ON CONFLICT(category_id, member_id) DO UPDATE SET ratio = excluded.ratio`,
+      [categoryId, memberId, ratio]
+    )
+  })
   saveDb()
 }
 
