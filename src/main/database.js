@@ -252,19 +252,49 @@ export function calculateSettlement(year, month) {
 
   const expenses = getExpensesByMonth(year, month)
   const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0)
-  const perPerson = totalAmount / members.length
+
+  // カテゴリの負担割合キャッシュ (category_id → {member_id: ratio})
+  const ratioCache = {}
+  function getRatioMap(categoryId) {
+    if (categoryId == null) return null
+    if (ratioCache[categoryId] !== undefined) return ratioCache[categoryId]
+    const rows = toObjects(
+      db.exec('SELECT member_id, ratio FROM category_burden_ratios WHERE category_id = ?', [categoryId])
+    )
+    const map = {}
+    rows.forEach((r) => { map[r.member_id] = r.ratio })
+    ratioCache[categoryId] = map
+    return map
+  }
+
+  // 各メンバーの負担合計（支出ごとに負担割合を適用）
+  const fairShareMap = {}
+  members.forEach((m) => { fairShareMap[m.id] = 0 })
+
+  expenses.forEach((e) => {
+    const ratioMap = getRatioMap(e.category_id)
+    const totalRatio = ratioMap
+      ? members.reduce((sum, m) => sum + (ratioMap[m.id] ?? 1), 0)
+      : members.length
+
+    members.forEach((m) => {
+      const ratio = ratioMap ? (ratioMap[m.id] ?? 1) : 1
+      fairShareMap[m.id] += totalRatio > 0 ? (e.amount * ratio) / totalRatio : e.amount / members.length
+    })
+  })
 
   // 各メンバーの支払い合計と差額（正: 多く払った / 負: 少ない）
   const balances = members.map((m) => {
     const paid = expenses
       .filter((e) => e.paid_by === m.id)
       .reduce((sum, e) => sum + e.amount, 0)
+    const fairShare = fairShareMap[m.id]
     return {
       id: m.id,
       name: m.name,
       paid,
-      fairShare: Math.round(perPerson),
-      balance: paid - perPerson
+      fairShare: Math.round(fairShare),
+      balance: paid - fairShare
     }
   })
 
@@ -296,7 +326,7 @@ export function calculateSettlement(year, month) {
 
   return {
     totalAmount,
-    perPerson: Math.round(perPerson),
+    perPerson: Math.round(totalAmount / members.length),
     balances: balances.map((b) => ({ ...b, balance: Math.round(b.balance) })),
     transactions
   }
